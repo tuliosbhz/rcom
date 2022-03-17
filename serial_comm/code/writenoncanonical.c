@@ -5,6 +5,9 @@
 #include <fcntl.h>
 #include <termios.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 #define BAUDRATE B38400
 #define MODEMDEVICE "/dev/ttyS1"
@@ -58,7 +61,7 @@ int main(int argc, char** argv)
 
   /* 
     VTIME e VMIN devem ser alterados de forma a proteger com um temporizador a 
-    leitura do(s) próximo(s) caracter(es)
+    leitura do(s) prï¿½ximo(s) caracter(es)
   */
 
 
@@ -72,22 +75,25 @@ int main(int argc, char** argv)
 
     printf("New termios structure set\n");
 
-
+    //buf = gets();
 
     for (i = 0; i < 255; i++) {
       buf[i] = 'a';
     }
     
     /*testing*/
-    buf[25] = '\n';
+    buf[254] = '\0';
+    printf("Buffer content: %s\n", buf);
     
     res = write(fd,buf,255);   
     printf("%d bytes written\n", res);
+    
+
  
 
   /* 
-    O ciclo FOR e as instruções seguintes devem ser alterados de modo a respeitar 
-    o indicado no guião 
+    O ciclo FOR e as instruï¿½ï¿½es seguintes devem ser alterados de modo a respeitar 
+    o indicado no guiï¿½o 
   */
 
 

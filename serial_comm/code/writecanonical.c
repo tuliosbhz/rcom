@@ -71,8 +71,10 @@ int main(int argc, char** argv)
    tcsetattr(fd,TCSANOW,&newtio);
 
   
-   for (i = 0; i < 254; i++) buf[i] = 'a' + i % 26;
+   for (i = 0; i < 254; i++) buf[i] = 'a';
+   //+ i % 26;
    buf[254] = '\n';
+
   
    bytes = write(fd,buf,255);
    printf("Bytes written = %d\n", bytes);
