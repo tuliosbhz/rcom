@@ -24,14 +24,11 @@ int main(int argc, char** argv)
     char buf[255];
     int i, sum = 0, speed = 0;
     
-    if ( (argc < 2) || 
-  	     ((strcmp("/dev/ttyS0", argv[1])!=0) && 
-  	      (strcmp("/dev/ttyS1", argv[1])!=0) )) {
+    if (argc < 2) //|| ((strcmp("/dev/ttyS0", argv[1])!=0) && (strcmp("/dev/ttyS1", argv[1])!=0) )) 
+    {
       printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");
       exit(1);
     }
-
-
   /*
     Open serial port device for reading and writing and not as controlling tty
     because we don't want to get killed if linenoise sends CTRL-C.
@@ -55,17 +52,12 @@ int main(int argc, char** argv)
     newtio.c_lflag = 0;
 
     newtio.c_cc[VTIME]    = 0;   /* inter-character timer unused */
-    newtio.c_cc[VMIN]     = 5;   /* blocking read until 5 chars received */
-
-
+    newtio.c_cc[VMIN]     = 1;   /* blocking read until 5 chars received */
 
   /* 
     VTIME e VMIN devem ser alterados de forma a proteger com um temporizador a 
     leitura do(s) pr�ximo(s) caracter(es)
   */
-
-
-
     tcflush(fd, TCIOFLUSH);
 
     if ( tcsetattr(fd,TCSANOW,&newtio) == -1) {
@@ -74,19 +66,36 @@ int main(int argc, char** argv)
     }
 
     printf("New termios structure set\n");
-
-    //buf = gets();
-
-    for (i = 0; i < 255; i++) {
-      buf[i] = 'a';
-    }
     
+    gets(buf);
+
+//    for (i = 0; i < 255; i++) 
+//    {
+//      buf[i] = 'a';
+//    }
+
     /*testing*/
     buf[254] = '\0';
-    printf("Buffer content: %s\n", buf);
-    
-    res = write(fd,buf,255);   
+    printf("Content of buffer sended: %s\n", buf);
+    res = write(fd,buf,sizeof(buf));   
     printf("%d bytes written\n", res);
+
+    //Read response of noncanonical
+    while (STOP==FALSE) /* loop for input */
+    {       
+      res = read(fd,buf,1);  /* returns after 1 chars have been input */
+      if(res < 0)
+      {
+        perror("Read on serial file at /dev/ttyS0 failed");
+        STOP=TRUE;
+      } else {
+        buf[res]=0;               /* so we can printf... */
+        printf(":%s:%d\t", buf, res);
+      }
+      if (buf[0]=='\0') STOP=TRUE;
+    }
+//    res = write(fd,buf,255);   
+//    printf("%d bytes written\n", res);
     
 
  
