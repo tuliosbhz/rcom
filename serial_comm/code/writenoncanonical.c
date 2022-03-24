@@ -9,15 +9,30 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <signal.h>
+
 #define BAUDRATE B38400
 #define MODEMDEVICE "/dev/ttyS1"
 #define _POSIX_SOURCE 1 /* POSIX compliant source */
 #define FALSE 0
 #define TRUE 1
 
+#define SET_SIZE 5
+#define FLAG_SET 0b01111110
+#define A_SET_SERV_CLIENT 0b00000011 
+#define A_SET_CLIENT_SERV 0b00000001 
+#define C_SET 
+#define BCC_SET
+
+
 #define BUFF_SIZE 255
 
 volatile int STOP=FALSE;
+
+void signal_handler(int sig)
+{
+  printf("Timeout\n");
+}
 
 int main(int argc, char** argv)
 {
@@ -68,8 +83,14 @@ int main(int argc, char** argv)
     }
 
     printf("New termios structure set\n");
+
+    // u_int8_t set[SET_SIZE];
+    // set[0] = FLAG_SET;
+    // set[1] = A_SET
     
-    //
+    // signal (SIGALRM, signal_handler);
+    // alarm(2);
+
     gets(buf);
 
     /*testing*/
@@ -79,6 +100,8 @@ int main(int argc, char** argv)
     printf("%d bytes written\n", res);
 
     //tcflush(fd, TCIOFLUSH);
+
+    sleep(1);
 
     //char rcv_buf[BUFF_SIZE];
     //Read response of noncanonical
