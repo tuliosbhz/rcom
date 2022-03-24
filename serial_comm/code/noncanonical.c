@@ -5,11 +5,21 @@
 #include <fcntl.h>
 #include <termios.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+
 
 #define BAUDRATE B38400
 #define _POSIX_SOURCE 1 /* POSIX compliant source */
 #define FALSE 0
 #define TRUE 1
+#define BUFF_SIZE 255
+#define UA_SIZE
+#define UA_SET 0b01111110
+#define A_UA_SERV_CLIENT 0b00000011
+#define A_UA_CLIENT_SERV 0b00000011
+#define C_SET
 
 volatile int STOP=FALSE;
 
@@ -17,11 +27,10 @@ int main(int argc, char** argv)
 {
     int fd,c, res;
     struct termios oldtio,newtio;
-    char buf[255];
-
-    if ( (argc < 2) || 
-  	     ((strcmp("/dev/ttyS0", argv[1])!=0) && 
-  	      (strcmp("/dev/ttyS1", argv[1])!=0) )) {
+    char buf[BUFF_SIZE];
+    ///dev/ttyS0
+    if (argc < 2) //|| ((strcmp("/tmb/vboxS0", argv[1])!=0) && (strcmp("/tmb/vboxS0", argv[1])!=0) )) 
+    {
       printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");
       exit(1);
     }
@@ -50,16 +59,12 @@ int main(int argc, char** argv)
     newtio.c_lflag = 0;
 
     newtio.c_cc[VTIME]    = 0;   /* inter-character timer unused */
-    newtio.c_cc[VMIN]     = 5;   /* blocking read until 5 chars received */
-
-
+    newtio.c_cc[VMIN]     = 1;   /* blocking read until 5 chars received */
 
   /* 
     VTIME e VMIN devem ser alterados de forma a proteger com um temporizador a 
-    leitura do(s) próximo(s) caracter(es)
+    leitura do(s) prï¿½ximo(s) caracter(es)
   */
-
-
 
     tcflush(fd, TCIOFLUSH);
 
@@ -69,19 +74,31 @@ int main(int argc, char** argv)
     }
 
     printf("New termios structure set\n");
-
-
-    while (STOP==FALSE) {       /* loop for input */
-      res = read(fd,buf,255);   /* returns after 5 chars have been input */
-      buf[res]=0;               /* so we can printf... */
-      printf(":%s:%d\n", buf, res);
-      if (buf[0]=='z') STOP=TRUE;
+    char echobuf[BUFF_SIZE];
+    int i=0;
+    while (STOP==FALSE) /* loop for input */
+    {       
+      res = read(fd,buf,1);  /* returns after 1 chars have been input */
+      if(res < 0)
+      {
+        perror("Read on serial file at /dev/ttyS0 failed");
+        STOP=TRUE;
+      } else {
+        echobuf[i] = buf[0]; //Copy character read to buffer of response
+        buf[res]=0;               /* so we can printf... */
+        printf(":%s:%d\t", buf, res);
+        i++;
+      }
+      if (buf[0]=='\0') STOP=TRUE;
     }
-
-
+	echobuf[sizeof(echobuf)-1]='\0';
+    printf("Content of echo buffer: %s\n", echobuf);
+    res = write(fd,echobuf,sizeof(echobuf));   
+    //tcflush(fd, TCIOFLUSH);
+    printf("%d bytes written\n", res);
 
   /* 
-    O ciclo WHILE deve ser alterado de modo a respeitar o indicado no guião 
+    O ciclo WHILE deve ser alterado de modo a respeitar o indicado no guiï¿½o 
   */
 
 
