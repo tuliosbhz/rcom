@@ -15,6 +15,8 @@
 #define FALSE 0
 #define TRUE 1
 
+#define BUFF_SIZE 255
+
 volatile int STOP=FALSE;
 
 int main(int argc, char** argv)
@@ -67,12 +69,8 @@ int main(int argc, char** argv)
 
     printf("New termios structure set\n");
     
+    //
     gets(buf);
-
-//    for (i = 0; i < 255; i++) 
-//    {
-//      buf[i] = 'a';
-//    }
 
     /*testing*/
     buf[254] = '\0';
@@ -80,6 +78,9 @@ int main(int argc, char** argv)
     res = write(fd,buf,sizeof(buf));   
     printf("%d bytes written\n", res);
 
+    //tcflush(fd, TCIOFLUSH);
+
+    //char rcv_buf[BUFF_SIZE];
     //Read response of noncanonical
     while (STOP==FALSE) /* loop for input */
     {       
@@ -88,7 +89,8 @@ int main(int argc, char** argv)
       {
         perror("Read on serial file at /dev/ttyS0 failed");
         STOP=TRUE;
-      } else {
+      } else 
+      {
         buf[res]=0;               /* so we can printf... */
         printf(":%s:%d\t", buf, res);
       }
