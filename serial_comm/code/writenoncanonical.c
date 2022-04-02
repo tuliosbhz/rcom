@@ -17,12 +17,19 @@
 #define FALSE 0
 #define TRUE 1
 
+#define BUFF_SIZE 255
+
 #define SET_SIZE 5
 #define FLAG_SET 0b01111110
 #define A_SET_SERV_CLIENT 0b00000011 
 #define A_SET_CLIENT_SERV 0b00000001 
-#define C_SET 
-#define BCC_SET
+#define C_SET 0b00000011 //Control field command UA message (Handshake) 
+
+#define UA_SIZE 5
+#define FLAG_UA 0b01111110
+#define A_UA_SERV_CLIENT 0b00000011 //Address fied
+#define A_UA_CLIENT_SERV 0b00000011 //Address field UA
+#define C_UA 0b00000111 //Control field command UA message (Handshake)
 
 
 #define BUFF_SIZE 255
@@ -38,7 +45,7 @@ int main(int argc, char** argv)
 {
     int fd,c, res;
     struct termios oldtio,newtio;
-    char buf[255];
+    uint8_t buf[BUFF_SIZE];
     int i, sum = 0, speed = 0;
     
     if (argc < 2) //|| ((strcmp("/dev/ttyS0", argv[1])!=0) && (strcmp("/dev/ttyS1", argv[1])!=0) )) 
@@ -91,48 +98,96 @@ int main(int argc, char** argv)
     // signal (SIGALRM, signal_handler);
     // alarm(2);
 
-    gets(buf);
+    //gets(buf);
+    // uint8_t flag = FLAG_SET;
+    // uint8_t address_set = A_SET_SERV_CLIENT;
+    // uint8_t control_set = C_SET;
+    // uint8_t bcc_set = address_set ^ control_set;
+    // sprintf(buf, "%u%u%u%u%u", flag, address_set, control_set, bcc_set, flag);
+    
+    //Creating SET message
+    buf[0] = FLAG_SET;
+    buf[1] = A_SET_SERV_CLIENT;
+    buf[2] = C_SET;
+    buf[3] = A_SET_SERV_CLIENT ^ C_SET; //XOR, definir paridade
+    buf[SET_SIZE-1] = FLAG_SET;
 
     /*testing*/
-    buf[254] = '\0';
-    printf("Content of buffer sended: %s\n", buf);
-    res = write(fd,buf,sizeof(buf));   
-    printf("%d bytes written\n", res);
-
-    //tcflush(fd, TCIOFLUSH);
-
-    sleep(1);
-
+    
+    //buf[254] = '\0';
     //char rcv_buf[BUFF_SIZE];
     //Read response of noncanonical
+    //Handshake SET-UA
+    int count_retransmisions = 0;
     while (STOP==FALSE) /* loop for input */
-    {       
-      res = read(fd,buf,1);  /* returns after 1 chars have been input */
+    {
+      printf("Content of buffer sended: %s\n", buf);
+      //Write SET message
+      res = write(fd,buf,sizeof(buf));
       if(res < 0)
       {
         perror("Read on serial file at /dev/ttyS0 failed");
         STOP=TRUE;
-      } else 
-      {
-        buf[res]=0;               /* so we can printf... */
-        printf(":%s:%d\t", buf, res);
       }
-      if (buf[0]=='\0') STOP=TRUE;
+      printf("%d bytes written\n", res);
+      //Check UA content message 
+      for(int i=0; i<5; i++)
+      {
+        //Start timeout clock
+        alarm(3); 
+        //Reads each byte of UA message
+        res = read(fd,buf,1);  /* returns after 1 chars have been input */
+        if(res < 0)
+        {
+          perror("Read on serial file at /dev/ttyS0 failed");
+          STOP=TRUE;
+        }
+        switch(i)
+        {
+          case 0:
+            if(buf[0] != FLAG_UA) perror("Header flag of UA message is not correct");
+            break;
+          case 1:
+            if(buf[0] != A_UA_CLIENT_SERV) perror("Header flag of UA message is not correct");
+            break;
+          case 2:
+            if(buf[0] != C_UA) perror("Header flag of UA message is not correct");
+            break;
+          case 3:
+            if(buf[0] != (A_UA_CLIENT_SERV ^ C_UA)) perror("Header flag of UA message is not correct");
+            break;
+          case 4:
+            if(buf[0] != FLAG_UA) perror("Header flag of UA message is not correct");
+            alarm(0);
+            break;
+          default: 
+            perror("Header flag of UA message is not correct");
+            break;
+        }
+        //Cancel 
+      }
+      if(res < 0)
+      {
+        perror("Read on serial file at /dev/ttyS0 failed");
+        STOP=TRUE;
+      } //else 
+      // {
+      //   buf[res]=0;  /* so we can printf... */
+      //   printf(":%s:%d\t", buf, res);
+      // }
+      count_retransmisions++;
+      if (count_retransmisions == 3) 
+      {
+        perror("To many tries(3 retransmissions)");
+        STOP=TRUE;
+      }
     }
 //    res = write(fd,buf,255);   
 //    printf("%d bytes written\n", res);
-    
-
- 
-
   /* 
     O ciclo FOR e as instru��es seguintes devem ser alterados de modo a respeitar 
     o indicado no gui�o 
-  */
-
-
-
-   
+  */   
     if ( tcsetattr(fd,TCSANOW,&oldtio) == -1) {
       perror("tcsetattr");
       exit(-1);

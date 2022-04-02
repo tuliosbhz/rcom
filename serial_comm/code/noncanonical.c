@@ -14,12 +14,20 @@
 #define _POSIX_SOURCE 1 /* POSIX compliant source */
 #define FALSE 0
 #define TRUE 1
+
 #define BUFF_SIZE 255
-#define UA_SIZE
-#define UA_SET 0b01111110
-#define A_UA_SERV_CLIENT 0b00000011
-#define A_UA_CLIENT_SERV 0b00000011
-#define C_SET
+
+#define UA_SIZE 5
+#define FLAG_UA 0b01111110
+#define A_UA_SERV_CLIENT 0b00000011 //Address fied
+#define A_UA_CLIENT_SERV 0b00000011 //Address field UA
+#define C_UA 0b00000111 //Control field command UA message (Handshake)
+
+#define SET_SIZE 5
+#define FLAG_SET 0b01111110
+#define A_SET_SERV_CLIENT 0b00000011 
+#define A_SET_CLIENT_SERV 0b00000001 
+#define C_SET 0b00000011 //Control field command UA message (Handshake) 
 
 volatile int STOP=FALSE;
 
@@ -35,12 +43,10 @@ int main(int argc, char** argv)
       exit(1);
     }
 
-
   /*
     Open serial port device for reading and writing and not as controlling tty
     because we don't want to get killed if linenoise sends CTRL-C.
   */
-  
     
     fd = open(argv[1], O_RDWR | O_NOCTTY );
     if (fd <0) {perror(argv[1]); exit(-1); }
@@ -91,7 +97,9 @@ int main(int argc, char** argv)
       }
       if (buf[0]=='\0') STOP=TRUE;
     }
-	echobuf[sizeof(echobuf)-1]='\0';
+    
+
+	  echobuf[sizeof(echobuf)-1]='\0';
     printf("Content of echo buffer: %s\n", echobuf);
     res = write(fd,echobuf,sizeof(echobuf));   
     //tcflush(fd, TCIOFLUSH);
