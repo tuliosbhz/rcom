@@ -102,8 +102,9 @@ int main(int argc, char** argv)
       //Start timeout clock
       //alarm(5); 
       //Reads each byte of SET message
-      res = read(fd,buf, SET_SIZE);  /* returns after 1 chars have been input */
-
+      res = read(fd,buf, 1);  /* returns after 1 chars have been input */
+	  
+        //Check SET message content
       if(res < 0)
       {
         //perror("Read on serial file at /dev/ttyS0 failed");
@@ -113,8 +114,8 @@ int main(int argc, char** argv)
       }
       //if(count_read == 5) 
       //{
-      printf("Content of buffer received: 0x%02X | 0x%02X | 0x%02X | 0x%02X| 0x%02X\n", 
-                                       buf[0], buf[1], buf[2],buf[3], buf[4]);
+      //printf("Content of buffer received: 0x%02X | 0x%02X | 0x%02X | 0x%02X| 0x%02X\n", 
+										//buf[0], buf[1], buf[2],buf[3], buf[4]);
         //Check SET message content
         //State machine
         //while(state<5)
@@ -210,21 +211,22 @@ int main(int argc, char** argv)
           STOP=TRUE;
         } else 
         {
-          printf("Receiving SET message");
+          printf("Receiving SET message\n");
         }
       //}else count_read++; //Until not read 5 bytes keeps reading
       
     } //End of Receive SET message LOOP
-
+    sleep(1);
+		STOP=FALSE;
     //Sending the UA response
     while (STOP==FALSE) /* loop for input */
     {
       //Creating SET message
-      buf[0] = FLAG_SET;
-      buf[1] = A_SET_SERV_CLIENT;
-      buf[2] = C_SET;
-      buf[3] = A_SET_SERV_CLIENT ^ C_SET; //XOR, definir paridade
-      buf[SET_SIZE-1] = FLAG_SET;
+      buf[0] = FLAG_UA;
+      buf[1] = A_UA_CLIENT_SERV;
+      buf[2] = C_UA;
+      buf[3] = A_UA_CLIENT_SERV ^ C_UA; //XOR, definir paridade
+      buf[SET_SIZE-1] = FLAG_UA;
       printf("Content of buffer sended: 0x%02X | 0x%02X | 0x%02X | 0x%02X| 0x%02X\n", 
                                         buf[0], buf[1], buf[2],buf[3], buf[4]);
       //Write SET message
