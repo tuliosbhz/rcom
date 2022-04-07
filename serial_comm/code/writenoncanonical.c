@@ -36,11 +36,19 @@ volatile int STOP=FALSE;
 
 typedef unsigned char BYTE;
 int timeout=0, count_retransmissions = 0;
-int fd, buf[SET_SIZE];
+int fd;
+BYTE buf[SET_SIZE];
 
 void signal_handler(int sig)
 {
+  printf("Timeout\n");
   timeout = 1;
+  //Creating SET message
+  buf[0] = FLAG_SET;
+  buf[1] = A_SET_SERV_CLIENT;
+  buf[2] = C_SET;
+  buf[3] = A_SET_SERV_CLIENT ^ C_SET; //XOR, definir paridade
+  buf[SET_SIZE-1] = FLAG_SET;
   int res = write(fd,buf,SET_SIZE);
   if(res < 0)
   {
@@ -54,8 +62,6 @@ void signal_handler(int sig)
     alarm(0);
     STOP=TRUE;
   } else alarm(3);
-
-  printf("Timeout\n");
 }
 
 int main(int argc, char** argv)
@@ -118,42 +124,41 @@ int main(int argc, char** argv)
     //Handshake SET-UA
     int count_retransmisions = 0, error = 0;
     int state = 0;
+    //Creating SET message
+    buf[0] = FLAG_SET;
+    buf[1] = A_SET_SERV_CLIENT;
+    buf[2] = C_SET;
+    buf[3] = A_SET_SERV_CLIENT ^ C_SET; //XOR, definir paridade
+    buf[SET_SIZE-1] = FLAG_SET;
+    printf("Content of buffer sent: 0x%02X | 0x%02X | 0x%02X | 0x%02X| 0x%02X\n", 
+                                      buf[0], buf[1], buf[2],buf[3], buf[4]);
+    //Write SET message
+    res = write(fd,buf,SET_SIZE);
+    if(res < 0)
+    {
+      perror("Read on serial file at /dev/ttyS0 failed");
+      STOP=TRUE;
+    } else printf("%d bytes written\n", res);
+    //Start timeout clock
+    alarm(3);
+
     while (STOP==FALSE) /* loop for input */
     {
-      //Creating SET message
-      buf[0] = FLAG_SET;
-      buf[1] = A_SET_SERV_CLIENT;
-      buf[2] = C_SET;
-      buf[3] = A_SET_SERV_CLIENT ^ C_SET; //XOR, definir paridade
-      buf[SET_SIZE-1] = FLAG_SET;
-      printf("Content of buffer sended: 0x%02X | 0x%02X | 0x%02X | 0x%02X| 0x%02X\n", 
-                                        buf[0], buf[1], buf[2],buf[3], buf[4]);
-      //Write SET message
-      res = write(fd,buf,SET_SIZE);
-      //Check for errors at writing the Message to the serial channel
-      if(res < 0)
-      {
-        perror("Read on serial file at /dev/ttyS0 failed");
-        STOP=TRUE;
-      }else 
-      {
-        //Start timeout clock
-        alarm(3);
-        printf("%d bytes written\n", res);
         //Waits to read all of UA message
-        res = read(fd,buf,UA_SIZE);  /* returns after 1 chars have been input */
-        if(res != 5)
+        res = read(fd,buf,1);  /* returns after 1 chars have been input */
+        if(res < 0)
         {
           //perror("Read on serial file at /dev/ttyS0 failed");
           printf("Number of bytes read from UA messsage is wrong");
           STOP=TRUE;
           break;
         }
+        //printf("Content of buffer read: 0x%02X | 0x%02X | 0x%02X | 0x%02X| 0x%02X\n", 
+        //                          buf[0], buf[1], buf[2],buf[3], buf[4]);
         //Check UA content message 
         //State machine
-        while(state<5)
-        {
-          if(error > 0) break;
+        //while(state<5)
+        //{
 
           switch(state)
           {
@@ -212,9 +217,9 @@ int main(int argc, char** argv)
               error++;
               break;
           }
+          if(error > 0) break;
            
-        } //End of State Machine
-      }
+        //} //End of State Machine
       // count_retransmisions++;
       // if (count_retransmisions == 3) 
       // {
