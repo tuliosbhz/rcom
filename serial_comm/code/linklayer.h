@@ -47,7 +47,7 @@ int llread(char* packet);
 // Closes previously opened connection; if showStatistics==TRUE, link layer should print statistics in the console on close
 int llclose(int showStatistics);
 
-
+/Users/tuliosoares/VirtualBox VMs/CICA2/host/rcom/serial_comm/code/linklayer.h
 #endif
 
 

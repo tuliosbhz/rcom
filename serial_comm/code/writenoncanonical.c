@@ -32,28 +32,42 @@
 #define A_UA_CLIENT_SERV 0x01 //0b00000001 //Address field UA
 #define C_UA 0x07 //0b00000111 //Control field command UA message (Handshake)
 
-
-#define BUFF_SIZE 255
-
 volatile int STOP=FALSE;
 
 typedef unsigned char BYTE;
-int timeout=0;
+int timeout=0, count_retransmissions = 0;
+int fd, buf[SET_SIZE];
 
 void signal_handler(int sig)
 {
-  timeout =1;
+  timeout = 1;
+  int res = write(fd,buf,SET_SIZE);
+  if(res < 0)
+  {
+    perror("Read on serial file at /dev/ttyS0 failed");
+    STOP=TRUE;
+  }
+  count_retransmissions++;
+  if(count_retransmissions == 3)
+  {
+    perror("Too many retransmissions");
+    alarm(0);
+    STOP=TRUE;
+  } else alarm(3);
+
   printf("Timeout\n");
 }
 
 int main(int argc, char** argv)
 {
+    int timeout = 0;
     signal(SIGALRM, signal_handler);
 
-    int fd,c, res;
+    //int fd,c, res;
+    int c, res;
     struct termios oldtio,newtio;
-    BYTE buf[BUFF_SIZE];
-    int i, sum = 0, speed = 0;
+    //BYTE buf[BUFF_SIZE];
+    int sum = 0, speed = 0;
     
     if (argc < 2) //|| ((strcmp("/dev/ttyS0", argv[1])!=0) && (strcmp("/dev/ttyS1", argv[1])!=0) )) 
     {
@@ -103,7 +117,7 @@ int main(int argc, char** argv)
     //Read response of noncanonical
     //Handshake SET-UA
     int count_retransmisions = 0, error = 0;
-    i = 0;
+    int state = 0;
     while (STOP==FALSE) /* loop for input */
     {
       //Creating SET message
@@ -126,101 +140,94 @@ int main(int argc, char** argv)
         //Start timeout clock
         alarm(3);
         printf("%d bytes written\n", res);
-        //Reads each byte of UA message
+        //Waits to read all of UA message
         res = read(fd,buf,UA_SIZE);  /* returns after 1 chars have been input */
-        if(res < 0)
+        if(res != 5)
         {
-          perror("Read on serial file at /dev/ttyS0 failed");
+          //perror("Read on serial file at /dev/ttyS0 failed");
+          printf("Number of bytes read from UA messsage is wrong");
           STOP=TRUE;
           break;
         }
         //Check UA content message 
         //State machine
-        while(i<5)
+        while(state<5)
         {
           if(error > 0) break;
 
-          switch(i)
+          switch(state)
           {
             case 0: //TODO: Incomplete estate machine, if received 2 flags stay at the same state
               if(buf[0] != (BYTE)FLAG_UA)
               {
-                perror("Header flag of UA message is not correct");
+                printf("Header flag of UA message is not correct\n");
                 printf("Header flag received: 0x%02X | Value Expected: 0x%02X \n", buf[0], FLAG_UA);
-                i=0;
+                state=0;
                 error++;
-              } else i++;
+              } else state++;
               break;
             case 1:
               if(buf[0] != (BYTE)A_UA_CLIENT_SERV) 
               {
-                perror("Address flag of UA message is not correct");
+                printf("Address flag of UA message is not correct\n");
                 printf("Address flag received: 0x%02X | Value Expected: 0x%02X \n", buf[0], A_UA_CLIENT_SERV);
-                i=1;
+                state=1;
                 error++;
-              } else i++;
+              } else state++;
               break;
             case 2:
               if(buf[0] != (BYTE)C_UA) 
               {
-                perror("Control flag of UA message is not correct");
+                printf("Control flag of UA message is not correct\n");
                 printf("Control flag received: 0x%02X | Value Expected: 0x%02X \n", buf[0], C_UA);
-                i=2;
+                state=2;
                 error++;
-              } else i++;
+              } else state++;
               break;
             case 3:
               if(buf[0] != (BYTE)(A_UA_CLIENT_SERV ^ C_UA)) 
               {
-                perror("BCC flag of UA message is not correct");
+                printf("BCC flag of UA message is not correct\n");
                 printf("BCC flag received: 0x%02X | Value Expected: 0x%02X \n", buf[0], (A_UA_CLIENT_SERV ^ C_UA));
-                i=3;
+                state=3;
                 error++;
-              } else i++;
+              } else state++;
               break;
             case 4:
               if(buf[0] != (BYTE)FLAG_UA) 
               {
-                perror(" Tail flag of UA message is not correct");
+                printf(" Tail flag of UA message is not correct\n");
                 printf("Tail flag received: 0x%02X | Value Expected: 0x%02X \n", buf[0], FLAG_UA);
-                i=4;
+                state=4;
                 error++;
               } else 
               {
                 alarm(0);
-                i++;
+                state++;
                 error++;
               }
               break;
             default: 
-              perror("Out of range State machine receiveing UA message");
+              printf("Out of range State machine receiveing UA message\n");
               error++;
               break;
           }
            
         } //End of State Machine
       }
-      count_retransmisions++;
-      if (count_retransmisions == 3) 
-      {
-        perror("To many tries(3 retransmissions)");
-        STOP=TRUE;
-      }
-      error = 0; //To not break the state machine in case of retransmission
+      // count_retransmisions++;
+      // if (count_retransmisions == 3) 
+      // {
+      //   perror("To many tries(3 retransmissions)");
+      //   STOP=TRUE;
+      // }
+      error = 0; //Cannot break the state machine in case of retransmission
     }
-//    res = write(fd,buf,255);   
-//    printf("%d bytes written\n", res);
-  /* 
-    O ciclo FOR e as instru��es seguintes devem ser alterados de modo a respeitar 
-    o indicado no gui�o 
-  */   
+
     if ( tcsetattr(fd,TCSANOW,&oldtio) == -1) {
       perror("tcsetattr");
       exit(-1);
     }
-
-
-
 
     close(fd);
     return 0;
