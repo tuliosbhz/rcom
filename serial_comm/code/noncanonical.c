@@ -36,18 +36,87 @@ volatile int STOP=FALSE;
 
 typedef unsigned char BYTE;
 
-void signal_handler(int sig)
+int st_machine(unsigned char byte_set, int state)
 {
-  printf("Timeout\n");
+//State machine
+  switch(state)
+  {
+    case 0:
+      if(byte_set == (BYTE)FLAG_SET)
+      {
+        state++
+      }else
+      {
+        printf("Header flag of SET message is not correct");
+        printf("Header flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, FLAG_SET);
+        state=0;
+      } 
+      printf("Header flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, FLAG_SET);
+      break;
+    case 1:
+      if(byte_set != (BYTE)A_SET_SERV_CLIENT) 
+      {
+        printf("Address flag of SET message is not correct");
+        printf("Address flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, A_SET_SERV_CLIENT);
+        state=0;
+        break;
+      } else 
+      {
+        state++; //Only change state if received correctly the message
+      }
+      printf("Address flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, A_SET_SERV_CLIENT);
+      break;
+    case 2:
+      if(byte_set != (BYTE)C_SET) 
+      {
+        perror("Control flag of SET message is not correct");
+        printf("Control flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, C_SET);
+        state=0;
+        break;
+      } else 
+      {
+        state++; //Only change state if received correctly the message
+      }
+      printf("Control flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, C_SET);
+      break;
+    case 3:
+      if(byte_set != (BYTE)(A_SET_SERV_CLIENT ^ C_SET)) 
+      {
+        perror("BCC flag of SET message is not correct");
+        printf("BCC flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, (A_SET_SERV_CLIENT ^ C_SET));
+        state=0;
+        break;
+      } else 
+      {
+        state++; //Only change state if received correctly the message
+      }
+      printf("BCC flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, (A_SET_SERV_CLIENT ^ C_SET));
+      break;
+    case 4:
+      if(byte_set != (BYTE)FLAG_UA) 
+      {
+        printf("Tail flag of SET message is not correct");
+        printf("Tail flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, FLAG_UA);
+        state=0;
+        break;
+      } else 
+      {
+        state++;
+      }
+      printf("Tail flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, FLAG_UA);
+      break;
+    default: 
+      printf("Out of range State machine receiveing UA message\n");
+      break;
+  }
+  return state;
 }
 
 int main(int argc, char** argv)
 {
-    signal (SIGALRM, signal_handler);
-
     int fd,c, res;
     struct termios oldtio,newtio;
-    BYTE buf[SET_SIZE];
+    unsigned char buf[SET_SIZE];
     ///dev/ttyS0
     if (argc < 2) //|| ((strcmp("/tmb/vboxS0", argv[1])!=0) && (strcmp("/tmb/vboxS0", argv[1])!=0) )) 
     {
@@ -77,7 +146,7 @@ int main(int argc, char** argv)
     newtio.c_lflag = 0;
 
     newtio.c_cc[VTIME]    = 0;   /* inter-character timer unused */
-    newtio.c_cc[VMIN]     = 1;   /* blocking read until 1 chars received */
+    newtio.c_cc[VMIN]     = 0;   /* blocking read until 1 chars received */
 
   /* 
     VTIME e VMIN devem ser alterados de forma a proteger com um temporizador a 
@@ -92,19 +161,13 @@ int main(int argc, char** argv)
     }
 
     printf("New termios structure set\n");
-    char checkbuf[UA_SIZE];
 
-    int state=0, count_retransmisions=0, error = 0;
-    int count_read = 5;
-    //Receiving the SET Message
+    int state=0;
+    // Receiving the SET Message
     while (STOP==FALSE) /* loop for input */
     {
-      //Start timeout clock
-      //alarm(5); 
       //Reads each byte of SET message
       res = read(fd,buf, 1);  /* returns after 1 chars have been input */
-	  
-        //Check SET message content
       if(res < 0)
       {
         //perror("Read on serial file at /dev/ttyS0 failed");
@@ -112,149 +175,45 @@ int main(int argc, char** argv)
         STOP=TRUE;
         break;
       }
-      //if(count_read == 5) 
-      //{
-      //printf("Content of buffer received: 0x%02X | 0x%02X | 0x%02X | 0x%02X| 0x%02X\n", 
-										//buf[0], buf[1], buf[2],buf[3], buf[4]);
-        //Check SET message content
-        //State machine
-        //while(state<5)
-        //{
-          switch(state)
-          {
-            case 0:
-              if(buf[0] != (BYTE)FLAG_SET)
-              {
-                printf("Header flag of SET message is not correct");
-                printf("Header flag received: 0x%02X | Value Expected: 0x%02X \n", buf[0], FLAG_SET);
-                state=0;
-                error++;
-              } else 
-              {
-                error =0; //To avoid the block of the read() retransmission
-                state++; //Next state
-              }
-              printf("Header flag received: 0x%02X | Value Expected: 0x%02X \n", buf[0], FLAG_SET);
-              break;
-            case 1:
-              if(buf[0] != (BYTE)A_SET_SERV_CLIENT) 
-              {
-                printf("Address flag of SET message is not correct");
-                printf("Address flag received: 0x%02X | Value Expected: 0x%02X \n", buf[0], A_SET_SERV_CLIENT);
-                state=1;
-                error++; 
-                break;
-              } else 
-              {
-                error =0;//To avoid the block of the read() retransmission
-                state++; //Only change state if received correctly the message
-              }
-              printf("Address flag received: 0x%02X | Value Expected: 0x%02X \n", buf[0], A_SET_SERV_CLIENT);
-              break;
-            case 2:
-              if(buf[0] != (BYTE)C_SET) 
-              {
-                perror("Control flag of SET message is not correct");
-                printf("Control flag received: 0x%02X | Value Expected: 0x%02X \n", buf[0], C_SET);
-                state=2;
-                error++;
-                break;
-              } else 
-              {
-                error =0;//To avoid the block of the read() retransmission
-                state++; //Only change state if received correctly the message
-              }
-              printf("Control flag received: 0x%02X | Value Expected: 0x%02X \n", buf[0], C_SET);
-              break;
-            case 3:
-              if(buf[0] != (BYTE)(A_SET_SERV_CLIENT ^ C_SET)) 
-              {
-                perror("BCC flag of SET message is not correct");
-                printf("BCC flag received: 0x%02X | Value Expected: 0x%02X \n", buf[0], (A_SET_SERV_CLIENT ^ C_SET));
-                state=3;
-                error++;
-                break;
-              } else 
-              {
-                error =0;//To avoid the block of the read() retransmission
-                state++; //Only change state if received correctly the message
-              }
-              printf("BCC flag received: 0x%02X | Value Expected: 0x%02X \n", buf[0], (A_SET_SERV_CLIENT ^ C_SET));
-              break;
-            case 4:
-              if(buf[0] != (BYTE)FLAG_UA) 
-              {
-                printf("Tail flag of SET message is not correct");
-                printf("Tail flag received: 0x%02X | Value Expected: 0x%02X \n", buf[0], FLAG_UA);
-                state=4;
-                error++;
-                break;
-              } else 
-              {
-                alarm(0);
-                error=0;//To avoid the block of the read() retransmission
-                state++;
-              }
-              printf("Tail flag received: 0x%02X | Value Expected: 0x%02X \n", buf[0], FLAG_UA);
-              break;
-            default: 
-              printf("Out of range State machine receiveing UA message");
-              error++;
-              break;
-          }
-          if(error > 0) break; //Read retransmission
-        //} //End of State Machine
-        if(state == 5)
-        {
-          printf("SET message received with success\n");
-          state=0;
-          STOP=TRUE;
-        } else 
-        {
-          printf("Receiving SET message\n");
-        }
-      //}else count_read++; //Until not read 5 bytes keeps reading
-      
-    } //End of Receive SET message LOOP
-    sleep(1);
-		STOP=FALSE;
-    //Sending the UA response
-    while (STOP==FALSE) /* loop for input */
-    {
-      //Creating SET message
-      buf[0] = FLAG_UA;
-      buf[1] = A_UA_CLIENT_SERV;
-      buf[2] = C_UA;
-      buf[3] = A_UA_CLIENT_SERV ^ C_UA; //XOR, definir paridade
-      buf[SET_SIZE-1] = FLAG_UA;
-      printf("Content of buffer sended: 0x%02X | 0x%02X | 0x%02X | 0x%02X| 0x%02X\n", 
-                                        buf[0], buf[1], buf[2],buf[3], buf[4]);
-      //Write SET message
-      res = write(fd,buf,SET_SIZE);
-      //Check for errors at writing the Message to the serial channel
-      if(res < 0)
+      //Check SET message content
+      state = st_machine(buf[0], state);
+
+      if(state == 5)
       {
-        perror("Read on serial file at /dev/ttyS0 failed");
+        printf("SET message received with success\n");
+        state=0;
         STOP=TRUE;
-      }else 
+      } else 
       {
-        printf("%d bytes written\n", res);
+        printf("Receiving SET message\n");
       }
+
+    } //End of Receive SET message LOOP
+    
+    //UA response
+    buf[0] = FLAG_UA;
+    buf[1] = A_UA_CLIENT_SERV;
+    buf[2] = C_UA;
+    buf[3] = A_UA_CLIENT_SERV ^ C_UA; //XOR, definir paridade
+    buf[SET_SIZE-1] = FLAG_UA;
+    printf("Content of buffer sended: 0x%02X | 0x%02X | 0x%02X | 0x%02X| 0x%02X\n", 
+                                      buf[0], buf[1], buf[2],buf[3], buf[4]);
+    //Write SET message
+
+    res = write(fd,buf,SET_SIZE);
+    //Check for errors at writing the Message to the serial channel
+    if(res < 0)
+    {
+      perror("Read on serial file at /dev/ttyS0 failed");
       STOP=TRUE;
-      // count_retransmisions++;
-      // if (count_retransmisions == 3) 
-      // {
-      //   perror("To many tries(3 retransmissions)");
-      //   STOP=TRUE;
-      // }
-      // error = 0; //To not break the state machine in case of retransmission
+    }else 
+    {
+      printf("%d bytes written\n", res);
     }
 
-  /* 
-    O ciclo WHILE deve ser alterado de modo a respeitar o indicado no gui�o 
-  */
-
-
+    /* 
+      O ciclo WHILE deve ser alterado de modo a respeitar o indicado no gui�o 
+    */
 
     tcsetattr(fd,TCSANOW,&oldtio);
     close(fd);
