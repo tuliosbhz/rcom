@@ -36,81 +36,93 @@ volatile int STOP=FALSE;
 
 typedef unsigned char BYTE;
 
-int st_machine(unsigned char byte_set, int state)
+int st_machine(int *rd,unsigned char byte_set, int state)
 {
-//State machine
+  *rd=1;  
   switch(state)
   {
     case 0:
-      if(byte_set == (BYTE)FLAG_SET)
+      if(byte_set == FLAG_SET)
       {
-        state++
+        state++;
       }else
       {
         printf("Header flag of SET message is not correct");
         printf("Header flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, FLAG_SET);
         state=0;
       } 
-      printf("Header flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, FLAG_SET);
       break;
     case 1:
-      if(byte_set != (BYTE)A_SET_SERV_CLIENT) 
+      if(byte_set == A_SET_SERV_CLIENT) 
       {
-        printf("Address flag of SET message is not correct");
-        printf("Address flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, A_SET_SERV_CLIENT);
-        state=0;
-        break;
+        state++;
       } else 
-      {
-        state++; //Only change state if received correctly the message
-      }
-      printf("Address flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, A_SET_SERV_CLIENT);
-      break;
+            if(byte_set==FLAG_SET){*rd=0; state--;}
+            else
+            {
+                printf("Address flag of SET message is not correct\n");
+                printf("Address flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, A_SET_SERV_CLIENT);
+                state = 0;
+            }
+      
+        break;
     case 2:
-      if(byte_set != (BYTE)C_SET) 
+      if(byte_set == C_SET) 
       {
-        perror("Control flag of SET message is not correct");
+        state++;
+      } else if(byte_set==A_SET_SERV_CLIENT){*rd=0;state--;}
+        else{
+        printf("Control flag of SET message is not correct");
         printf("Control flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, C_SET);
         state=0;
-        break;
-      } else 
-      {
-        state++; //Only change state if received correctly the message
-      }
-      printf("Control flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, C_SET);
+        }
       break;
     case 3:
-      if(byte_set != (BYTE)(A_SET_SERV_CLIENT ^ C_SET)) 
+      if(byte_set == (BYTE)(A_SET_SERV_CLIENT ^ C_SET)) 
       {
-        perror("BCC flag of SET message is not correct");
+        printf("BCC flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, (A_SET_SERV_CLIENT ^ C_SET)); 
+        state++;
+      } else 
+        if(byte_set==C_SET){*rd=0;state--;}
+        else{
+        printf("BCC flag of SET message is not correct");
         printf("BCC flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, (A_SET_SERV_CLIENT ^ C_SET));
         state=0;
-        break;
-      } else 
-      {
-        state++; //Only change state if received correctly the message
-      }
-      printf("BCC flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, (A_SET_SERV_CLIENT ^ C_SET));
+        }
       break;
     case 4:
-      if(byte_set != (BYTE)FLAG_UA) 
+      if(byte_set == FLAG_UA) 
+      {
+        state++;
+      } 
+        else
+        if(byte_set==(A_SET_SERV_CLIENT^C_SET)){*rd=0;state--;}
+         else 
       {
         printf("Tail flag of SET message is not correct");
         printf("Tail flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, FLAG_UA);
         state=0;
-        break;
-      } else 
-      {
-        state++;
       }
-      printf("Tail flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, FLAG_UA);
+     
       break;
-    default: 
-      printf("Out of range State machine receiveing UA message\n");
+      default:
       break;
   }
   return state;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 int main(int argc, char** argv)
 {
@@ -163,30 +175,32 @@ int main(int argc, char** argv)
     printf("New termios structure set\n");
 
     int state=0;
+    int rd = 1;
+
+
+
+    
+
+    
     // Receiving the SET Message
     while (STOP==FALSE) /* loop for input */
     {
       //Reads each byte of SET message
-      res = read(fd,buf, 1);  /* returns after 1 chars have been input */
-      if(res < 0)
-      {
-        //perror("Read on serial file at /dev/ttyS0 failed");
-        printf("Number of bytes read from SET messsage is wrong");
-        STOP=TRUE;
-        break;
-      }
-      //Check SET message content
-      state = st_machine(buf[0], state);
+       /* returns after 1 chars have been input */
+      if(rd==1) read(fd,buf,1);
+     
+
+      state=st_machine(&rd,buf[0],state);
+      
+      
+      
 
       if(state == 5)
       {
         printf("SET message received with success\n");
-        state=0;
+        alarm(0);
         STOP=TRUE;
-      } else 
-      {
-        printf("Receiving SET message\n");
-      }
+      } 
 
     } //End of Receive SET message LOOP
     
@@ -201,8 +215,7 @@ int main(int argc, char** argv)
     //Write SET message
 
     res = write(fd,buf,SET_SIZE);
-    //Check for errors at writing the Message to the serial channel
-    if(res < 0)
+     if(res < 0)
     {
       perror("Read on serial file at /dev/ttyS0 failed");
       STOP=TRUE;
@@ -210,12 +223,17 @@ int main(int argc, char** argv)
     {
       printf("%d bytes written\n", res);
     }
+    //Check for errors at writing the Message to the serial channel
+    
 
     /* 
       O ciclo WHILE deve ser alterado de modo a respeitar o indicado no gui�o 
     */
 
-    tcsetattr(fd,TCSANOW,&oldtio);
+    if ( tcsetattr(fd,TCSANOW,&oldtio) == -1) {
+      perror("tcsetattr");
+      exit(-1);
+    }
     close(fd);
     return 0;
 }
