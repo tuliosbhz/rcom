@@ -34,7 +34,6 @@
 
 volatile int STOP=FALSE;
 
-typedef unsigned char BYTE;
 int timeout=0, count_retransmissions = 0;
 int fd;
 unsigned char buf[SET_SIZE];
@@ -89,7 +88,7 @@ int st_machine(int *rd, unsigned char ua_byte, int state)
     case 3:
       if(ua_byte == (A_UA_CLIENT_SERV ^ C_UA)) 
       {
-        /printf("BCC flag received: 0x%02X | Value Expected: 0x%02X \n", ua_byte, (A_UA_CLIENT_SERV ^ C_UA));
+        //printf("BCC flag received: 0x%02X | Value Expected: 0x%02X \n", ua_byte, (A_UA_CLIENT_SERV ^ C_UA));
         state++;
       }
       else
@@ -156,7 +155,7 @@ int main(int argc, char** argv)
     //int fd,c, res;
     int c, res;
     struct termios oldtio,newtio;
-    //BYTE buf[BUFF_SIZE];
+    //unsigned char buf[BUFF_SIZE];
     int sum = 0, speed = 0;
     
     if (argc < 2) //|| ((strcmp("/dev/ttyS0", argv[1])!=0) && (strcmp("/dev/ttyS1", argv[1])!=0) )) 

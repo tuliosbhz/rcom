@@ -34,8 +34,6 @@
 
 volatile int STOP=FALSE;
 
-typedef unsigned char BYTE;
-
 int st_machine(int *rd,unsigned char byte_set, int state)
 {
   *rd=1;  
@@ -47,8 +45,8 @@ int st_machine(int *rd,unsigned char byte_set, int state)
         state++;
       }else
       {
-        printf("Header flag of SET message is not correct");
-        printf("Header flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, FLAG_SET);
+        //printf("Header flag of SET message is not correct\n");
+        //printf("Header flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, FLAG_SET);
         state=0;
       } 
       break;
@@ -78,9 +76,9 @@ int st_machine(int *rd,unsigned char byte_set, int state)
         }
       break;
     case 3:
-      if(byte_set == (BYTE)(A_SET_SERV_CLIENT ^ C_SET)) 
+      if(byte_set == (unsigned char)(A_SET_SERV_CLIENT ^ C_SET)) 
       {
-        printf("BCC flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, (A_SET_SERV_CLIENT ^ C_SET)); 
+        //printf("BCC flag received: 0x%02X | Value Expected: 0x%02X \n", byte_set, (A_SET_SERV_CLIENT ^ C_SET)); 
         state++;
       } else 
         if(byte_set==C_SET){*rd=0;state--;}
@@ -111,19 +109,6 @@ int st_machine(int *rd,unsigned char byte_set, int state)
   return state;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 int main(int argc, char** argv)
 {
     int fd,c, res;
@@ -136,10 +121,10 @@ int main(int argc, char** argv)
       exit(1);
     }
 
-  /*
-    Open serial port device for reading and writing and not as controlling tty
-    because we don't want to get killed if linenoise sends CTRL-C.
-  */
+    /*
+      Open serial port device for reading and writing and not as controlling tty
+      because we don't want to get killed if linenoise sends CTRL-C.
+    */
     
     fd = open(argv[1], O_RDWR | O_NOCTTY );
     if (fd <0) {perror(argv[1]); exit(-1); }
@@ -175,26 +160,16 @@ int main(int argc, char** argv)
     printf("New termios structure set\n");
 
     int state=0;
-    int rd = 1;
-
-
-
-    
-
-    
+    int rd = 1; 
     // Receiving the SET Message
     while (STOP==FALSE) /* loop for input */
     {
       //Reads each byte of SET message
        /* returns after 1 chars have been input */
       if(rd==1) read(fd,buf,1);
-     
 
       state=st_machine(&rd,buf[0],state);
       
-      
-      
-
       if(state == 5)
       {
         printf("SET message received with success\n");
@@ -223,9 +198,7 @@ int main(int argc, char** argv)
     {
       printf("%d bytes written\n", res);
     }
-    //Check for errors at writing the Message to the serial channel
     
-
     /* 
       O ciclo WHILE deve ser alterado de modo a respeitar o indicado no gui�o 
     */

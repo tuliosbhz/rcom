@@ -37,9 +37,9 @@ int main(int argc, char *argv[]) {
 		ll.numTries = 3;
 		ll.timeOut = 3;
 
-    		if(llopen(ll)==-1) {
-        		fprintf(stderr, "Could not initialize link layer connection\n");
-        		exit(1);
+		if(llopen(ll)==-1) {
+			fprintf(stderr, "Could not initialize link layer connection\n");
+			exit(1);
    		}
 
 		printf("connection opened\n");
@@ -47,12 +47,12 @@ int main(int argc, char *argv[]) {
 		fflush(stderr);
 
 		// open file to read
-    		char *file_path = argv[3];
-	        int file_desc = open(file_path, O_RDONLY);
-    		if(file_desc < 0) {
-        		fprintf(stderr, "Error opening file: %s\n", file_path);
-        		exit(1);
-    		}
+		char *file_path = argv[3];
+		int file_desc = open(file_path, O_RDONLY);
+		if(file_desc < 0) {
+			fprintf(stderr, "Error opening file: %s\n", file_path);
+			exit(1);
+		}
 
 		// cycle through
 		const int buf_size = MAX_PAYLOAD_SIZE-1;
@@ -62,10 +62,10 @@ int main(int argc, char *argv[]) {
 		while (bytes_read > 0)
 		{
 			bytes_read = read(file_desc, buffer+1, buf_size);
-                        if(bytes_read < 0) {
-                                fprintf(stderr, "Error receiving from link layer\n");
-                                break;
-                        }
+					if(bytes_read < 0) {
+							fprintf(stderr, "Error receiving from link layer\n");
+							break;
+					}
 			else if (bytes_read > 0) {
 				// continue sending data
 				buffer[0] = 1;
@@ -94,8 +94,8 @@ int main(int argc, char *argv[]) {
 	}
 	else
 	{
-        	// ***************
-        	// rx mode
+		// ***************
+		// rx mode
 		printf("rx mode\n");
 
                 struct linkLayer ll;
