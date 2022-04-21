@@ -3,9 +3,6 @@
 volatile int STOP=FALSE;
 int flag=1, 
 
-
-
-
 int llread(int fd,char* packet){
     int res, receiving=0,i=0,j;
 	char str[2];

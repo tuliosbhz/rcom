@@ -5,7 +5,6 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-
 /*
  * $1 /dev/ttySxx
  * $2 tx | rx

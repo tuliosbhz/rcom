@@ -238,7 +238,11 @@ int llopen(linkLayer cnnectionParameters)
     if(connectionParameters.timeOut != TIMEOUT_DEFAULT) return -1;
     
     //Open the file of serial port
-    int fd, res;
+    int fd, res, rd;
+    //Handshake SET-UA
+    char buf[SET_SIZE];
+    int count_retransmisions = 0, error = 0;
+    int state = 0;
     struct termios oldtio,newtio;
 
     //signal(SIGALRM, signal_handler);
@@ -273,55 +277,46 @@ int llopen(linkLayer cnnectionParameters)
     */
     tcflush(fd, TCIOFLUSH);
 
-    if ( tcsetattr(fd,TCSANOW,&newtio) == -1) {
+    if ( tcsetattr(fd,TCSANOW,&newtio) == -1) 
+    {
         perror("tcsetattr");
         exit(-1);
     }
-    return fd;
-}
-// Sends data in buf with size bufSize
-int llwrite(char* buf, int bufSize)
-{
-    //Handshake SET-UA
-    int count_retransmisions = 0, error = 0, res, fd;
-    int state = 0;
-    //Creating SET message
-    buf[0] = FLAG_SET;
-    buf[1] = A_SET_SERV_CLIENT;
-    buf[2] = C_SET;
-    buf[3] = A_SET_SERV_CLIENT ^ C_SET; //XOR, definir paridade
-    buf[SET_SIZE-1] = FLAG_SET;
-    //printf("Content of buffer sent: 0x%02X | 0x%02X | 0x%02X | 0x%02X| 0x%02X\n", 
-    //                                  buf[0], buf[1], buf[2],buf[3], buf[4]);
-    //Write SET message
-    res = write(fd,buf,SET_SIZE);
-    if(res < 0)
+    if(connectionParameters.role == 0) //If you are a transmitter (TX)
     {
-      perror("Read on serial file at /dev/ttyS0 failed");
-      STOP=TRUE;
-    } //else printf("%d bytes written\n", res);
-    //Start timeout clock
-    alarm(3);
-    int rd = 1;
-    while (STOP==FALSE) /* loop for input */
-    {
-      if (rd == 1) read(fd,buf,1);  /* returns after 1 chars have been input */
-      //State machine to check UA message 
-      state = ua_st_machine(&rd, buf[0], state);
-      if(state == 5) 
+      //Creating SET message
+      buf[0] = FLAG_SET;
+      buf[1] = A_SET_SERV_CLIENT;
+      buf[2] = C_SET;
+      buf[3] = A_SET_SERV_CLIENT ^ C_SET; //XOR, definir paridade
+      buf[SET_SIZE-1] = FLAG_SET;
+      //printf("Content of buffer sent: 0x%02X | 0x%02X | 0x%02X | 0x%02X| 0x%02X\n", 
+      //                                  buf[0], buf[1], buf[2],buf[3], buf[4]);
+      //Write SET message
+      res = write(fd,buf,SET_SIZE);
+      if(res < 0)
       {
-        //printf("UA message received with sucess\n");
-        alarm(0);
-        STOP = TRUE;
+        perror("Read on serial file at /dev/ttyS0 failed");
+        STOP=TRUE;
+      } //else printf("%d bytes written\n", res);
+      //Start timeout clock
+      alarm(3);
+      rd = 1;
+      while (STOP==FALSE) /* loop for input */
+      {
+        if (rd == 1) read(fd,buf,1);  /* returns after 1 chars have been input */
+        //State machine to check UA message 
+        state = ua_st_machine(&rd, buf[0], state);
+        if(state == 5) 
+        {
+          //printf("UA message received with sucess\n");
+          alarm(0);
+          STOP = TRUE;
+        }
       }
-    }
-}
-// Receive data in packet
-int llread(char* packet)
-{
-    int state=0;
-    int rd = 1; 
-    // Receiving the SET Message
+    } else if(connectionParameters.role == 1) //If you are a receiver (RX)
+    {
+      // Receiving the SET Message
     while (STOP==FALSE) /* loop for input */
     {
       //Reads each byte of SET message
@@ -358,15 +353,32 @@ int llread(char* packet)
     {
       printf("%d bytes written\n", res);
     }
+    }
+
+    return fd;
+}
+// Sends data in buf with size bufSize
+int llwrite(char* buf, int bufSize)
+{
+
+}
+// Receive data in packet
+int llread(char* packet)
+{
+    int state=0;
+    int rd = 1; 
+    
 }
 // Closes previously opened connection; if showStatistics==TRUE, link layer should print statistics in the console on close
 int llclose(int showStatistics)
 {
-    if ( tcsetattr(fd,TCSANOW,&oldtio) == -1) {
-      perror("tcsetattr");
-      exit(-1);
-    }
-    close(fd);
+  int fd; //How i find the file descriptor
+  struct termios oldtio;
+  if ( tcsetattr(fd,TCSANOW,&oldtio) == -1) {
+    perror("tcsetattr");
+    exit(-1);
+  }
+  close(fd);
 }   
 
 
