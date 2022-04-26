@@ -11,6 +11,8 @@
 #include <unistd.h>
 #include <string.h>
 
+int ROLE, FD_SERIAL;
+
 typedef struct linkLayer{
     char serialPort[50];
     int role; //defines the role of the program: 0==Transmitter, 1=Receiver
