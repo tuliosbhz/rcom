@@ -12,9 +12,11 @@
 #define C_REJ1 0x25 //Reject message supervised using 1
 #define C_RR0 0x01 // Receiver ready message 0
 #define C_RR1 0x21 // Receiver ready message 1
+#define C_I0 0x00 // Control of Information Message with bit 0
+#define C_I1 0x02 // Control of Information Message with bit 1
 
 //volatile int STOP=FALSE;
-int C_I = 0x00;
+char C_I = 0x00;
 //Connecting
 char trama_set[5]={FLAG, A_SERV_CLIENT, C_SET, A_SERV_CLIENT^C_SET,FLAG};
 char trama_ua[5]={FLAG, A_CLIENT_SERV, C_UA, A_CLIENT_SERV^C_UA,FLAG};
@@ -26,6 +28,22 @@ char trama_rr1[5] = {FLAG, A_SERV_CLIENT, C_RR1, A_SERV_CLIENT^C_RR1, FLAG};
 //Closing
 char trama_disc_transmitter[5] = {FLAG, A_SERV_CLIENT, C_DISC, A_SERV_CLIENT^C_DISC, FLAG};
 char trama_disc_receiver[5] = {FLAG, A_CLIENT_SERV, C_DISC, A_CLIENT_SERV^C_DISC, FLAG};
+
+char switchNs(char ns)
+{
+  if(ns == C_I0)
+    return C_I1;
+  else 
+    return C_I0;
+}
+
+char * switchResponse(char C_IX)
+{
+  if(C_IX == C_I0) 
+    return trama_rr0;
+  else 
+    return trama_rr1;
+}
 
 int ua_st_machine(int *rd, unsigned char ua_byte, int state) 
 {
@@ -342,7 +360,7 @@ int rr_rej_st_machine(int *rd, unsigned char ua_byte, int state)
 
 }
 
-int i_st_machine(char* packet, int *rd, unsigned char ua_byte, int state, size_t trama_size, int count_reads_payload) 
+int i_st_machine(char* packet, int *rd, unsigned char ua_byte, int state, int count_reads_payload, char* trama_res) 
 { 
   *rd = 1;
   switch(state)
@@ -354,9 +372,8 @@ int i_st_machine(char* packet, int *rd, unsigned char ua_byte, int state, size_t
         state++;
       }
       else {
-        printf("Header flag of I message is not correct\n");
-        printf("Header flag received: 0x%02X | Value Expected: 0x%02X \n", ua_byte, FLAG);
-        state=0;
+        //printf("Header flag of I message is not correct\n");
+        //printf("Header flag received: 0x%02X | Value Expected: 0x%02X \n", ua_byte, FLAG);
       }
       break;
     case 1:
@@ -379,6 +396,7 @@ int i_st_machine(char* packet, int *rd, unsigned char ua_byte, int state, size_t
       {
         //printf("Control flag received: 0x%02X | Value Expected: 0x%02X \n", ua_byte, C_UA);
         state++;
+        trama_res = switchResponse(C_I);
       }
       else 
         if(ua_byte == A_SERV_CLIENT) {*rd=0; state--;}
@@ -406,15 +424,27 @@ int i_st_machine(char* packet, int *rd, unsigned char ua_byte, int state, size_t
         } 
       break;
     case 4:
-      if(ua_byte == FLAG) 
+      if(ua_byte == (A_CLIENT_SERV ^ C_I)) 
       {
         //printf("Tail flag received: 0x%02X | Value Expected: 0x%02X \n", ua_byte, FLAG);
         state++;
       }
       else //Reads payload
         {
+          printf("Reading I message payload\n");
           packet[count_reads_payload] = ua_byte;
           count_reads_payload++;
+        }
+      break;
+      case 5:
+      if(ua_byte == FLAG) 
+      {
+        state++;
+      }
+      else //Reads payload
+        {
+          printf(" Tail flag of I message is not correct\n");
+          printf("Tail flag received: 0x%02X | Value Expected: 0x%02X \n", ua_byte, FLAG);
         }
       break;
     default:
@@ -474,9 +504,10 @@ int llopen(linkLayer connectionParameters)
     FD_SERIAL = open(connectionParameters.serialPort, O_RDWR | O_NOCTTY );
     if (FD_SERIAL <0) {perror(connectionParameters.serialPort); exit(-1); }
 
-    if ( tcgetattr(FD_SERIAL,&oldtio) == -1) { /* save current port settings */
-    perror("tcgetattr");
-    exit(-1);
+    if ( tcgetattr(FD_SERIAL,&oldtio) == -1) 
+    { /* save current port settings */
+      perror("tcgetattr");
+      exit(-1);
     }
 
     bzero(&newtio, sizeof(newtio));
@@ -569,44 +600,55 @@ int llwrite(char* buf, int bufSize)
   int state = 0;
   int stop = FALSE;
 
-  if(ROLE == TRANSMITTER) //If you are a transmitter (TX)
-  {
-    int payload_size = strlen(buf);
-    if(payload_size > MAX_PAYLOAD_SIZE) printf("Payload to large");
+  //int payload_size = strlen(buf);
+  if(bufSize > MAX_PAYLOAD_SIZE) printf("Payload to large");
 
-    int I_SIZE = 3 + payload_size + 1;
-    char I[I_SIZE];
-    I[0] = FLAG;
-    I[1] = A_SERV_CLIENT;
-    I[2] = C_I; // 0x00 or 0x02 //TODO: insert toogle feature
-    for(i=0; i<bufSize; i++)
+  int I_SIZE = 4 + bufSize + 2;
+  unsigned char I[I_SIZE];
+  I[0] = FLAG;
+  I[1] = A_SERV_CLIENT;
+  I[2] = C_I; // 0x00 or 0x02 //TODO: insert toogle feature
+  I[3] = A_SERV_CLIENT ^ C_I; //BCC1
+
+  for(i=0; i<bufSize; i++)
+  {
+    I[i+4] = buf[i];
+  }
+
+  I[I_SIZE - 2] = A_CLIENT_SERV ^ C_I;
+  I[I_SIZE - 1] = FLAG;
+
+ 
+  for(i=0; i<I_SIZE; i++)
+  {
+    printf("%02X\t", I[i]);
+  }
+  //Write I message
+  res = write(FD_SERIAL, I, bufSize + 4);
+  if(res < 0)
+  {
+    perror("Read on serial file at /dev/ttyS0 failed");
+    return -1;
+  } else printf("%d bytes written\n", res);
+
+  //For the next I message sent
+  C_I = switchNs(C_I);
+
+  //Read ACKs
+  rd = 1;
+  while (stop==FALSE) /* loop for input */
+  {
+    if (rd == 1) read(FD_SERIAL,buf,1);  /* returns after 1 chars have been input */
+    //State machine to check UA message 
+    state = rr_rej_st_machine(&rd, buf[0], state);
+    if(state == 5) 
     {
-      I[i+3] = buf[i];
+      //printf("UA message received with sucess\n");
+      state = 0;
+      stop = TRUE;
     }
-    I[I_SIZE - 1] = FLAG;
-    //Write I message
-    res = write(FD_SERIAL, I, bufSize + 4);
-    if(res < 0)
-    {
-      perror("Read on serial file at /dev/ttyS0 failed");
-      return -1;
-    } else printf("%d bytes written\n", res);
-    //Start timeout clock
-    //alarm(connectionParameters.timeOut);
-  } else if(ROLE == RECEIVER) //If you are a receiver (RX)
-    {
-      //Write RR or REJ message
-      if(bufSize == 0)
-      res = write(FD_SERIAL, trama_ua, UNNUM_FRAME_SIZE);
-      if(res < 0)
-      {
-        perror("Read on serial file at /dev/ttyS0 failed");
-        stop=TRUE;
-      }else 
-      {
-        printf("%d bytes written\n", res);
-      }
-    }
+  }
+
   return 0;
 }
 // Receive data in packet
@@ -614,47 +656,40 @@ int llread(char* packet)
 {
   int res, rd;
   //Handshake SET-UA
-  char buf[UNNUM_FRAME_SIZE];
+  char buf;
   int count_retransmisions = 0, error = 0;
   int state = 0;
   int reads_packet = 0;
   int stop = FALSE;
+  char *trama_response;
 
-  if(ROLE == TRANSMITTER) //If you are a transmitter (TX)
+  // Read Information(I) Messages
+  while (stop==FALSE) /* loop for input */
   {
-    //Read ACKs
-    rd = 1;
-    while (stop==FALSE) /* loop for input */
+    //Reads each byte of SET message
+    /* returns after 1 chars have been input */
+    if(rd==1) read(FD_SERIAL,&buf,1);
+    if(buf != 0x74) printf("%02X\t", buf);
+    state=i_st_machine(packet,&rd, buf,state, reads_packet, trama_response);
+    if(state == 5)
     {
-      if (rd == 1) read(FD_SERIAL,buf,1);  /* returns after 1 chars have been input */
-      //State machine to check UA message 
-      state = rr_rej_st_machine(&rd, buf[0], state);
-      if(state == 5) 
-      {
-        //printf("UA message received with sucess\n");
-        state = 0;
-        stop = TRUE;
-      }
-    }
-  } else if(ROLE == RECEIVER) //If you are a receiver (RX)
-        {
-          // Read Information(I) Messages
-          while (stop==FALSE) /* loop for input */
-          {
-            //Reads each byte of SET message
-            /* returns after 1 chars have been input */
-            if(rd==1) read(FD_SERIAL,buf,1);
+      printf("I message received with success\n");
+      stop=TRUE;
+    } 
 
-            state=i_st_machine(packet,&rd, buf[0],state, sizeof(packet), reads_packet);
-            if(state == 5)
-            {
-              printf("SET message received with success\n");
-              stop=TRUE;
-            } 
+  } //End of Receive SET message LOOP
 
-          } //End of Receive SET message LOOP
-        }
-    return 0;
+  //Write UA message
+  res = write(FD_SERIAL, trama_response, UNNUM_FRAME_SIZE);
+  if(res < 0)
+  {
+    perror("Read on serial file at /dev/ttyS0 failed");
+  }else 
+  {
+    printf("%d bytes written\n", res);
+  }
+
+  return 0;
 }
 // Closes previously opened connection; if showStatistics==TRUE, link layer should print statistics in the console on close
 int llclose(int showStatistics)
