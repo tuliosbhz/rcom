@@ -30,6 +30,8 @@ char trama_rr1[5] = {FLAG, A_SERV_CLIENT, C_RR1, A_SERV_CLIENT^C_RR1, FLAG};
 char trama_disc_transmitter[5] = {FLAG, A_SERV_CLIENT, C_DISC, A_SERV_CLIENT^C_DISC, FLAG};
 char trama_disc_receiver[5] = {FLAG, A_CLIENT_SERV, C_DISC, A_CLIENT_SERV^C_DISC, FLAG};
 
+char *trama_response = trama_rr0;
+
 char switchNs(char ns)
 {
   if(ns == C_I0)
@@ -614,7 +616,7 @@ int llwrite(char* buf, int bufSize)
   if(bufSize == 1)
   {
     return 0;
-  }else 
+  } else 
   {
     I[0] = FLAG;
     I[1] = A_SERV_CLIENT;
@@ -674,7 +676,6 @@ int llread(char* packet)
   //int state = 0;
   int *reads_packet = &BYTES_READ;
   int stop = FALSE;
-  char *trama_response;
 
   // Read Information(I) Messages
   if(STATE > 6) 
