@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
         			}
 	                        printf("read from file -> write to link layer, %d\n", bytes_read);
 			}
-                        else if (bytes_read == 0) {
+                    else if (bytes_read == 0) {
                                 // stop receiver
                                 buffer[0] = 0;
                                 llwrite(buffer, 1);
@@ -145,7 +145,7 @@ int main(int argc, char *argv[]) {
 				}
 			}
             	}
-		
+				printf("Call llclose RX\n");
                 llclose(1);
                 close(file_desc);
                 return 0;

@@ -17,6 +17,7 @@
 
 //volatile int STOP=FALSE;
 char C_I = 0x00;
+int TIMEOUT;
 //Connecting
 char trama_set[5]={FLAG, A_SERV_CLIENT, C_SET, A_SERV_CLIENT^C_SET,FLAG};
 char trama_ua[5]={FLAG, A_CLIENT_SERV, C_UA, A_CLIENT_SERV^C_UA,FLAG};
@@ -213,8 +214,8 @@ int disc_st_machine(int *rd, unsigned char ua_byte, int state)
         state++;
       }
       else {
-        printf("Header flag of DISC message is not correct\n");
-        printf("Header flag received: 0x%02X | Value Expected: 0x%02X \n", ua_byte, FLAG);
+        //printf("Header flag of DISC message is not correct\n");
+        //printf("Header flag received: 0x%02X | Value Expected: 0x%02X \n", ua_byte, FLAG);
         state=0;
       }
       break;
@@ -227,8 +228,8 @@ int disc_st_machine(int *rd, unsigned char ua_byte, int state)
         if(ua_byte == FLAG) {*rd=0; state--;}
         else
         {
-          printf("Address flag of DISC message is not correct\n");
-          printf("Address flag received: 0x%02X | Value Expected: 0x%02X \n", ua_byte, A_CLIENT_SERV);
+          //printf("Address flag of DISC message is not correct\n");
+          //printf("Address flag received: 0x%02X | Value Expected: 0x%02X \n", ua_byte, A_CLIENT_SERV);
           state = 0;
         }
       break;
@@ -241,8 +242,8 @@ int disc_st_machine(int *rd, unsigned char ua_byte, int state)
         if(ua_byte == A_CLIENT_SERV) {*rd=0; state--;}
         else
         {
-          printf("Control flag of DISC message is not correct\n");
-          printf("Control flag received: 0x%02X | Value Expected: 0x%02X \n", ua_byte, C_UA);
+          //printf("Control flag of DISC message is not correct\n");
+          //printf("Control flag received: 0x%02X | Value Expected: 0x%02X \n", ua_byte, C_UA);
           state=0;
         }
       break;
@@ -255,8 +256,8 @@ int disc_st_machine(int *rd, unsigned char ua_byte, int state)
         if(ua_byte == C_UA) {*rd=0; state--;}
         else
         {
-          printf("BCC flag of DISC message is not correct\n");
-          printf("BCC flag received: 0x%02X | Value Expected: 0x%02X \n", ua_byte, (A_CLIENT_SERV ^ C_UA));
+          //printf("BCC flag of DISC message is not correct\n");
+          //printf("BCC flag received: 0x%02X | Value Expected: 0x%02X \n", ua_byte, (A_CLIENT_SERV ^ C_UA));
           state=0;
         } 
       break;
@@ -268,8 +269,8 @@ int disc_st_machine(int *rd, unsigned char ua_byte, int state)
       else if(ua_byte == (A_CLIENT_SERV ^ C_UA)) {*rd=0; state--;}
         else
         {
-          printf(" Tail flag of DISC message is not correct\n");
-          printf("Tail flag received: 0x%02X | Value Expected: 0x%02X \n", ua_byte, FLAG);
+          //printf(" Tail flag of DISC message is not correct\n");
+          //printf("Tail flag received: 0x%02X | Value Expected: 0x%02X \n", ua_byte, FLAG);
           state=0;
         }
       break;
@@ -431,7 +432,7 @@ int i_st_machine(char* packet, int *rd, unsigned char ua_byte, int state, int co
       }
       else //Reads payload
         {
-          printf("Reading I message payload\n");
+          printf("%02X", ua_byte);
           packet[count_reads_payload] = ua_byte;
           count_reads_payload++;
         }
@@ -443,8 +444,11 @@ int i_st_machine(char* packet, int *rd, unsigned char ua_byte, int state, int co
       }
       else //Reads payload
         {
-          printf(" Tail flag of I message is not correct\n");
-          printf("Tail flag received: 0x%02X | Value Expected: 0x%02X \n", ua_byte, FLAG);
+          //printf("%c", ua_byte);
+          packet[count_reads_payload] = ua_byte;
+          count_reads_payload++;
+          //printf(" Tail flag of I message is not correct\n");
+          //printf("Tail flag received: 0x%02X | Value Expected: 0x%02X \n", ua_byte, FLAG);
         }
       break;
     default:
@@ -485,6 +489,7 @@ int llopen(linkLayer connectionParameters)
 {
     //Check parameters
     ROLE = connectionParameters.role;
+    TIMEOUT = connectionParameters.timeOut;
     //Open the file of serial port
     int res, rd, stop = FALSE;
     //Handshake SET-UA
@@ -591,6 +596,7 @@ int llopen(linkLayer connectionParameters)
     return FD_SERIAL;
 }
 // Sends data in buf with size bufSize
+int STATE = 0;
 int llwrite(char* buf, int bufSize)
 {
   int res, rd, i;
@@ -599,58 +605,65 @@ int llwrite(char* buf, int bufSize)
   int count_retransmisions = 0, error = 0;
   int state = 0;
   int stop = FALSE;
-
+  int I_SIZE = 4 + bufSize + 2;
+  char I[I_SIZE];
+  char R_X;
+  //TODO: Must have the stuffing here
   //int payload_size = strlen(buf);
   if(bufSize > MAX_PAYLOAD_SIZE) printf("Payload to large");
-
-  int I_SIZE = 4 + bufSize + 2;
-  unsigned char I[I_SIZE];
-  I[0] = FLAG;
-  I[1] = A_SERV_CLIENT;
-  I[2] = C_I; // 0x00 or 0x02 //TODO: insert toogle feature
-  I[3] = A_SERV_CLIENT ^ C_I; //BCC1
-
-  for(i=0; i<bufSize; i++)
+  if(bufSize == 1)
   {
-    I[i+4] = buf[i];
-  }
-
-  I[I_SIZE - 2] = A_CLIENT_SERV ^ C_I;
-  I[I_SIZE - 1] = FLAG;
-
- 
-  for(i=0; i<I_SIZE; i++)
+    return 0;
+  }else 
   {
-    printf("%02X\t", I[i]);
-  }
-  //Write I message
-  res = write(FD_SERIAL, I, bufSize + 4);
-  if(res < 0)
-  {
-    perror("Read on serial file at /dev/ttyS0 failed");
-    return -1;
-  } else printf("%d bytes written\n", res);
+    I[0] = FLAG;
+    I[1] = A_SERV_CLIENT;
+    I[2] = C_I; // 0x00 or 0x02 //TODO: insert toogle feature
+    I[3] = A_SERV_CLIENT ^ C_I; //BCC1
 
-  //For the next I message sent
-  C_I = switchNs(C_I);
-
-  //Read ACKs
-  rd = 1;
-  while (stop==FALSE) /* loop for input */
-  {
-    if (rd == 1) read(FD_SERIAL,buf,1);  /* returns after 1 chars have been input */
-    //State machine to check UA message 
-    state = rr_rej_st_machine(&rd, buf[0], state);
-    if(state == 5) 
+    for(i=0; i<bufSize; i++)
     {
-      //printf("UA message received with sucess\n");
-      state = 0;
-      stop = TRUE;
+      I[i+4] = buf[i];
     }
-  }
 
+    I[I_SIZE - 2] = A_CLIENT_SERV ^ C_I;
+    I[I_SIZE - 1] = FLAG;
+
+  
+    for(i=0; i<I_SIZE; i++)
+    {
+      printf("%02X\t", I[i]);
+    }
+    //Write I message
+    res = write(FD_SERIAL, I, I_SIZE);
+    if(res < 0)
+    {
+      perror("Read on serial file at /dev/ttyS0 failed");
+      return -1;
+    } else printf("%d bytes written\n", res);
+
+    //Read ACKs
+    rd = 1;
+    while (stop==FALSE) /* loop for input */
+    {
+      if (rd == 1) read(FD_SERIAL,&R_X,1);  /* returns after 1 chars have been input */
+      //State machine to check UA message 
+      STATE = rr_rej_st_machine(&rd, R_X, STATE);
+      if(STATE == 5) 
+      {
+        //printf("UA message received with sucess\n");
+        STATE = 0;
+        stop = TRUE;
+      }
+    }
+    //For the next I message sent
+    C_I = switchNs(C_I);
+  }
+ 
   return 0;
 }
+
+int BYTES_READ = 0;
 // Receive data in packet
 int llread(char* packet)
 {
@@ -658,38 +671,46 @@ int llread(char* packet)
   //Handshake SET-UA
   char buf;
   int count_retransmisions = 0, error = 0;
-  int state = 0;
-  int reads_packet = 0;
+  //int state = 0;
+  int *reads_packet = &BYTES_READ;
   int stop = FALSE;
   char *trama_response;
 
   // Read Information(I) Messages
-  while (stop==FALSE) /* loop for input */
+  if(STATE > 6) 
   {
-    //Reads each byte of SET message
-    /* returns after 1 chars have been input */
-    if(rd==1) read(FD_SERIAL,&buf,1);
-    if(buf != 0x74) printf("%02X\t", buf);
-    state=i_st_machine(packet,&rd, buf,state, reads_packet, trama_response);
-    if(state == 5)
+    res = write(FD_SERIAL, trama_response, UNNUM_FRAME_SIZE);
+    if(res < 0)
     {
-      printf("I message received with success\n");
-      stop=TRUE;
-    } 
-
-  } //End of Receive SET message LOOP
-
-  //Write UA message
-  res = write(FD_SERIAL, trama_response, UNNUM_FRAME_SIZE);
-  if(res < 0)
-  {
     perror("Read on serial file at /dev/ttyS0 failed");
-  }else 
-  {
+    }else 
+    {
     printf("%d bytes written\n", res);
-  }
-
-  return 0;
+    }
+    packet[0] = 0;
+    return 1;
+  }else{
+      while(stop==FALSE) /* loop for input */
+      {
+      //Reads each byte of SET message
+      if(STATE == 6)
+      {
+        printf("I message received with success\n");
+        sleep(1);
+        stop = TRUE;
+        STATE ++;
+        return BYTES_READ;
+      }else 
+      { 
+        /* returns after 1 chars have been input */
+        if(rd==1) read(FD_SERIAL,&buf,1);
+        //if(buf != 0x74) printf("%02X\t", buf);
+        STATE = i_st_machine(packet,&rd, buf,STATE, *reads_packet, trama_response);
+      }
+    }
+  } 
+  packet[0] = 0;
+  return 1;
 }
 // Closes previously opened connection; if showStatistics==TRUE, link layer should print statistics in the console on close
 int llclose(int showStatistics)
@@ -699,7 +720,7 @@ int llclose(int showStatistics)
   int state = 0;
   int stop = FALSE;
   //Check if exist a open connection 
-
+  
   //Implement the disc state machine
 
 if(ROLE == TRANSMITTER) //If you are a transmitter (TX)
@@ -713,7 +734,7 @@ if(ROLE == TRANSMITTER) //If you are a transmitter (TX)
         exit(1);
       } //else printf("%d bytes written\n", res);
       
-      alarm(3); //timeout clock
+      alarm(TIMEOUT); //timeout clock
 
       rd = 1; //Allow to read at first cycle
       while (stop==FALSE) /* routine to read DISC message */
@@ -729,7 +750,6 @@ if(ROLE == TRANSMITTER) //If you are a transmitter (TX)
           stop = TRUE;
         }
       }
-      
       //UA response after 2 DISC messages exchange
       res = write(FD_SERIAL, buf, UNNUM_FRAME_SIZE);
 
