@@ -321,7 +321,7 @@ int rr_rej_st_machine(int *rd, unsigned char ua_byte, int state)
         state++;
       }
       else 
-        if(ua_byte == A_CLIENT_SERV) {*rd=0; state--;}
+        if(ua_byte == A_SERV_CLIENT) {*rd=0; state--;}
         else
         {
           printf("Control flag of RR message is not correct\n");
@@ -330,7 +330,7 @@ int rr_rej_st_machine(int *rd, unsigned char ua_byte, int state)
         }
       break;
     case 3:
-      if((ua_byte == (A_CLIENT_SERV^C_REJ0)) || (ua_byte == (A_CLIENT_SERV^C_REJ1)) || (ua_byte == (A_CLIENT_SERV^C_RR0)) || (ua_byte == (A_CLIENT_SERV^C_RR1))) 
+      if((ua_byte == (A_SERV_CLIENT^C_REJ0)) || (ua_byte == (A_SERV_CLIENT^C_REJ1)) || (ua_byte == (A_SERV_CLIENT^C_RR0)) || (ua_byte == (A_SERV_CLIENT^C_RR1))) 
       {
         state++;
       }
@@ -427,7 +427,7 @@ int i_st_machine(char* packet, int *rd, unsigned char ua_byte, int state, int co
         } 
       break;
     case 4:
-      if(ua_byte == (A_CLIENT_SERV ^ C_I)) 
+      if(ua_byte == (A_CLIENT_SERV ^ C_I)) //Errado
       {
         //printf("Tail flag received: 0x%02X | Value Expected: 0x%02X \n", ua_byte, FLAG);
         state++;
@@ -486,6 +486,28 @@ int i_st_machine(char* packet, int *rd, unsigned char ua_byte, int state, int co
 //   } else alarm(3);
 // }
 // Opens a conection using the "port" parameters defined in struct linkLayer, returns "-1" on error and "1" on sucess
+int count_retransmissions = 0;
+char *trama_i;
+void signal_handler(int sig)
+{
+  printf("Timeout\n");
+  TIMEOUT = 1;
+  //Creating SET message
+
+  int res = write(FD_SERIAL,trama_i,sizeof(trama_i));
+  if(res < 0)
+  {
+    perror("Read on serial file at /dev/ttyS0 failed");
+    STOP=TRUE;
+  }
+  count_retransmissions++;
+  if(count_retransmissions == 3)
+  {
+    perror("Too many retransmissions");
+    alarm(0);
+    STOP=TRUE;
+  } else alarm(3);
+}
 
 int llopen(linkLayer connectionParameters)
 {
@@ -613,7 +635,7 @@ int llwrite(char* buf, int bufSize)
   //TODO: Must have the stuffing here
   //int payload_size = strlen(buf);
   if(bufSize > MAX_PAYLOAD_SIZE) printf("Payload to large");
-  if(bufSize == 1)
+  if(buf[0] == 0) //End of application called llwrite
   {
     return 0;
   } else 
@@ -631,7 +653,9 @@ int llwrite(char* buf, int bufSize)
     I[I_SIZE - 2] = A_CLIENT_SERV ^ C_I;
     I[I_SIZE - 1] = FLAG;
 
-  
+    //Timeout
+    trama_i = &I;
+
     for(i=0; i<I_SIZE; i++)
     {
       printf("%02X\t", I[i]);
@@ -642,7 +666,7 @@ int llwrite(char* buf, int bufSize)
     {
       perror("Read on serial file at /dev/ttyS0 failed");
       return -1;
-    } else printf("%d bytes written\n", res);
+    } else printf("I message sent: %d bytes written\n", res);
 
     //Read ACKs
     rd = 1;
@@ -683,10 +707,10 @@ int llread(char* packet)
     res = write(FD_SERIAL, trama_response, UNNUM_FRAME_SIZE);
     if(res < 0)
     {
-    perror("Read on serial file at /dev/ttyS0 failed");
+      perror("Read on serial file at /dev/ttyS0 failed");
     }else 
     {
-    printf("%d bytes written\n", res);
+      printf("LL: Confirmation of I message(RR or REJ): %d bytes written\n", res);
     }
     packet[0] = 0;
     return 1;
@@ -696,7 +720,7 @@ int llread(char* packet)
       //Reads each byte of SET message
       if(STATE == 6)
       {
-        printf("I message received with success\n");
+        printf("LL: I message received with success\n");
         sleep(1);
         stop = TRUE;
         STATE ++;
