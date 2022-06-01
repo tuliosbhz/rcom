@@ -212,23 +212,40 @@ NOTE: execute this in the tux54
 9. Observe results, stop captures and save logs [DONE]
 10. Repeat steps 7, 8 and 9, but now do ping broadcast in tux52 (ping –b 172.16.51.255)
 
+Questions
+» How to configure vlan50?
+    First we connect the serial port of the PC in the switch serial port for configuration
+    At the GtkTerm we press enter and after that is just to execute the commands as is showed bellow:
+    ~~~shell
+    tux-sw5>enable
+    password: 8nortel
+    ~~~
+    Vlan 0 configuration
+    ~~~shell
+    tux-sw5# configure terminal
+    tux-sw5# vlan 50
+    tux-sw5# end
+    tux-sw5# show vlan id 50
+» How many broadcast domains are there? How can you conclude it from the logs?
+
+
 ## EXPERIMENT 03
 ----------------
 
 Tux net configuration (addresses)
     - tux2
-        IP: 172.16.51.1/24:8
-        MAC: 00:21:5A:61:2F:D6
+        - IP: 172.16.51.1/24:8
+        - MAC: 00:21:5A:61:2F:D6
     - tux3
-        IP: 172.16.50.1/24:4
-        MAC: 00:21:5A:61:2D:72
+        - IP: 172.16.50.1/24:4
+        - MAC: 00:21:5A:61:2D:72
     - tux4
         - eth0
-            IP: 172.16.50.254/24:8
-            MAC: 00:21:5A:C3:78:70
+            - IP: 172.16.50.254/24:8
+            - MAC: 00:21:5A:C3:78:70
         - eth1
-            IP: 172.16.51.253/24:9
-            MAC: 00:C0:DF:08:D5:B0
+            - IP: 172.16.51.253/24:9
+            - MAC: 00:C0:DF:08:D5:B0
 
 tux-sw5# configure terminal
 tux-sw5# interface fastethernet 0/9
@@ -275,3 +292,58 @@ Output: IMAGE
 10. In tux51, ping tux52 for a few seconds.
 11. Stop captures in tux54 and save logs
 
+## EXPERIMENT 04
+----------------
+
+![Image](./exp4_topology.png)
+
+- Configure the port 20 of the switch in mode access to vlan 51
+    tux-sw5# configure terminal
+    tux-sw5# interface fastethernet 0/20
+    tux-sw5# switchport mode access
+    tux-sw5# switchport access vlan 51
+    tux-sw5# end
+    tux-sw5# show running-config interface fastethernet 0/20
+
+1. Configure commercial router RC and connect it (no NAT) to the lab network (172.16.1.0/24)
+
+    Configure route
+    add route tux2 -> vlan0
+    $ route add -net 172.16.50.0/24 gw 172.16.51.253
+    add route tux3 -> vlan1
+    $ route add -net 172.16.51.0/24 gw 172.16.50.254
+
+    In page 45 execute this commands:
+    » tux-rtr5# config t
+    » tux-rtr5# interface gigabitethernet 0/0
+    » tux-rtr5# ip address 172.16.51.254 255.255.255.0 
+    » no shutdown
+    » tux-rtr5# exit
+    » tux-rtr5# show interface gigabitethernet 0/0
+
+    » tux-rtr5# config t
+    » tux-rtr5# interface gigabitethernet 0/1
+    » tux-rtr5# ip address 172.16.1.59 255.255.255.0 
+    » no shutdown
+    » tux-rtr5# exit
+    » tux-rtr5# show interface gigabitethernet 0/1
+
+route add -net 172.16.51.0/24 gw 172.16.50.254
+
+
+2. Verify routes
+– tuxy4 as default router of tuxy1; 
+- Rc as default router for tuxy2 and tuxy4
+– Routes for 172.16.y0.0/24 in tuxy2 and Rc
+3. Using ping commands and wireshark, verify if tux53 can ping all the network interfaces of tuxy4, tuxy2 and Rc
+4. In tuxy2
+– Do: echo 0 > /proc/sys/net/ipv4/conf/eth0/accept_redirects and echo 0 > /proc/sys/net/ipv4/conf/all/accept_redirects
+– remove the route to 172.16.y0.0/24 via tuxy4
+– In tuxy2, ping tuxy1
+– Using capture at tuxy2, try to understand the path followed by ICMP ECHO and ECHO-REPLY packets (look at MAC addresses)
+– In tuxy2, do traceroute tuxy1
+– In tuxy2, add again the route to 172.16.y0.0/24 via tuxy4 and do traceroute tuxy1
+– Activate the acceptance of ICMP redirect at tuxy2 when there is no route to 172.16.y0.0/24 via tuxy4 and try to understand what happens
+5. In tuxy1, ping the router of the lab I.321 (172.16.1.254) and try to understand what happens
+6. Add NAT functionality to router Rc
+7. In tuxy1 ping 172.16.1.254, verify if there is connectivity, and try to understand what happens
