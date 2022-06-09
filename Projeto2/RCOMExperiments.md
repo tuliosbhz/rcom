@@ -90,10 +90,12 @@ Em resumo: Conectar a rede do laboratorio, realizar a update e limpar os disposi
 
 1. Configure tux52 and annotate its IP and MAC addresses
 
-After the update image 
-
+After the update image:
+~~~shell
 $ ifconfig eth0 up
 $ ifconfig eth0 <ipnumber/24(bits utilizados para rede)>
+~~~
+
 - NOTE: 32 - 24 = 8 bits utilizado para codificar os endereços na rede, resultando em 256 endereços - 2(Broadcast .255 and switch .0)
 
 Tux net configuration (addresses)
@@ -227,7 +229,7 @@ Questions
     tux-sw5# end
     tux-sw5# show vlan id 50
 » How many broadcast domains are there? How can you conclude it from the logs?
-
+    - Broadcast domains are the devices connected in a Layer 2. So every device that has an interface connected to each other can find using ARP anyone with a broadcast command.
 
 ## EXPERIMENT 03
 ----------------
@@ -269,7 +271,6 @@ tux-sw5# show interfaces fastethernet 0/9 switchport
 Output: IMAGE
 ~~~
 
-
 1. Transform tux54 (linux machine) into a router
 
 – Configure also tux54.eth1
@@ -293,9 +294,25 @@ Output: IMAGE
 11. Stop captures in tux54 and save logs
 
 ## EXPERIMENT 04
-----------------
+------------------
 
 ![Image](./exp4_topology.png)
+
+Passos realizados 
+
+- Conectar cada tux5n na porta 5.1 que dá acesso a net
+- Executar updateimage em cada tux5n 
+- Resetar o router e o switch
+- Configurar as vlans e as portas de acesso no switch
+- Configurar a rede do router 
+- Configurar tux54 como router também adicionando a eth1 a vlan51
+- Adicionar a rota do tux 54
+- Colocar tux54 como default router do tux53
+    - Dentro do tux53 executar
+        - $ route add default gw 172.16.50.254
+- Colocar Router como default router do tux52 e tux54
+    - Dentro do tux52 e tux54 executar:
+        - $ route add default gw 172.16.51.254
 
 - Configure the port 20 of the switch in mode access to vlan 51
     tux-sw5# configure terminal
@@ -307,10 +324,10 @@ Output: IMAGE
 
 1. Configure commercial router RC and connect it (no NAT) to the lab network (172.16.1.0/24)
 
-    Configure route
-    add route tux2 -> vlan0
+    Configure route in tux54
+    add route tux52 -> vlan0
     $ route add -net 172.16.50.0/24 gw 172.16.51.253
-    add route tux3 -> vlan1
+    add route tux53 -> vlan1
     $ route add -net 172.16.51.0/24 gw 172.16.50.254
 
     In page 45 execute this commands:
